@@ -1,6 +1,8 @@
 # Changelog
 
-## 2026-10-14
+## [0.0.1] - 2026-10-14
+
+首个发布版本。
 
 ### Added
 - `map_search` 的 `query` 支持字典形式 `{engine: query}`，每个引擎可使用各自 DSL

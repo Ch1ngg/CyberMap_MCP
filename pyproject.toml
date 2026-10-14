@@ -1,6 +1,6 @@
 [project]
 name = "cybermap-mcp"
-version = "0.1.0"
+version = "0.0.1"
 description = "MCP server aggregating 10 cyberspace mapping / threat intel platforms: Fofa, Hunter, Quake, Shodan, Censys, ZoomEye, ThreatBook, 0.zone, DayDayMap, VirusTotal"
 requires-python = ">=3.10"
 dependencies = [
