@@ -216,13 +216,14 @@ class Quake(Engine):
 
     async def search(self, client, query, limit, page):
         self.require()
+        size = max(1, min(limit, 5000))
         r = await client.post(
             "https://quake.360.net/api/v3/search/quake_service",
             headers={"X-QuakeToken": self.key("QUAKE_KEY")},
             json={
                 "query": query,
-                "start": (page - 1) * limit,
-                "size": max(1, min(limit, 5000)),
+                "start": (page - 1) * size,
+                "size": size,
                 "include": self._include,
             },
         )
@@ -279,7 +280,7 @@ class Shodan(Engine):
                 host=hostnames[0] if hostnames else None,
                 domain=hostnames[0] if hostnames else None,
                 title=http.get("title") or None,
-                service=m.get("data") or None,
+                service=(m.get("data") or "")[:200] or None,
                 product=m.get("product") or None,
                 protocol=m.get("transport") or None,
                 org=m.get("org") or None,
