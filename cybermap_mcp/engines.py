@@ -75,9 +75,14 @@ def merge_assets(assets: list[Asset]) -> list[Asset]:
             tail.append(a)
             continue
         if k in merged:
+            m = merged[k]
             for s in a.sources:
-                if s not in merged[k].sources:
-                    merged[k].sources.append(s)
+                if s not in m.sources:
+                    m.sources.append(s)
+            for f in ("ip", "port", "host", "domain", "url", "title",
+                      "service", "product", "protocol", "org", "country", "city"):
+                if getattr(m, f) is None and getattr(a, f) is not None:
+                    setattr(m, f, getattr(a, f))
         else:
             merged[k] = a
     return list(merged.values()) + tail
