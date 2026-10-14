@@ -76,6 +76,38 @@ def test_map_search_merges_and_isolates_errors(monkeypatch):
     assert len(out["errors"]) == 1 and "积分不足" in out["errors"][0]
 
 
+def test_map_search_query_dict_routes_per_engine(monkeypatch):
+    monkeypatch.setenv("FOFA_EMAIL", "u@x.com")
+    monkeypatch.setenv("FOFA_KEY", "k")
+    monkeypatch.setenv("SHODAN_KEY", "sk")
+    received = {}
+
+    def fake_search(name):
+        async def _s(client, query, limit, page):
+            received[name] = query
+            return [Asset(ip="1.1.1.1", port=80, sources=[name])]
+        return _s
+
+    for name in ("fofa", "shodan"):
+        e = next(e for e in SEARCH_ENGINES if e.name == name)
+        monkeypatch.setattr(e, "search", fake_search(name))
+
+    out = run(server.map_search_impl(
+        {"fofa": 'app="x"', "shodan": "product:x"}))
+    assert received == {"fofa": 'app="x"', "shodan": "product:x"}
+    assert out["total_raw"] == 2
+
+
+def test_map_search_query_dict_unknown_engine_raises():
+    with pytest.raises(ValueError, match="unknown engine"):
+        run(server.map_search_impl({"nope": "x"}))
+
+
+def test_map_search_query_dict_no_selected_match_raises():
+    with pytest.raises(ValueError, match="no entry"):
+        run(server.map_search_impl({"fofa": "x"}, engines=["quake"]))
+
+
 def test_host_intel_ip_calls_both_engines(monkeypatch):
     monkeypatch.setenv("THREATBOOK_KEY", "tbk")
     monkeypatch.setenv("VT_KEY", "vtk")

@@ -170,13 +170,16 @@ class Hunter(Engine):
 
     async def search(self, client, query, limit, page):
         self.require()
+        size = max(1, min(limit, 100))
+        # Hunter only accepts page_size in {1, 10, 20, 50, 100}; round up.
+        page_size = next(s for s in (1, 10, 20, 50, 100) if s >= size)
         r = await client.get(
             "https://hunter.qianxin.com/openApi/search",
             params={
                 "api-key": self.key("HUNTER_KEY"),
                 "search": b64(query),
                 "page": page,
-                "page_size": max(1, min(limit, 100)),
+                "page_size": page_size,
                 "is_web": 3,
             },
         )
@@ -201,7 +204,8 @@ class Hunter(Engine):
                 country=e.get("country") or None,
                 city=e.get("city") or None,
             ))
-        return out
+        # Round-up may over-fetch; slice back to the requested limit.
+        return out[:size]
 
 
 class Quake(Engine):
@@ -287,7 +291,8 @@ class Shodan(Engine):
                 country=loc.get("country_name") or None,
                 city=loc.get("city") or None,
             ))
-        return out
+        # Shodan has no page-size param (fixed 100/page); clamp client-side.
+        return out[:max(1, min(limit, 100))]
 
 
 class Censys(Engine):

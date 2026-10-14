@@ -9,9 +9,14 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import json
+import logging
 import sys
 
 import httpx
+
+# httpx logs full request URLs at INFO, which would leak API keys
+# (Fofa/Hunter/Shodan pass secrets as query params).
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 from .engines import (
     INTEL_ENGINES,
@@ -53,24 +58,42 @@ async def _run_engine(engine: Engine, coro):
         return {"results": [], "error": f"[{engine.name}] network error: {e}"}
 
 
-async def map_search_impl(query: str, engines: list[str] | None = None,
+async def map_search_impl(query: str | dict[str, str],
+                          engines: list[str] | None = None,
                           limit: int = 20, page: int = 1) -> dict:
-    """Unified search; raw query is passed to every selected engine.
+    """Unified search.
 
-    NOTE: engine DSLs are similar but not identical (e.g. Fofa `app="Tomcat"`
-    vs Shodan `http.component:tomcat`). Results are deduped on
-    (ip, port, host/domain, protocol) with per-engine `sources` merged.
+    `query` is either a plain string (broadcast to every selected engine
+    as-is) or a dict {engine_name: query} giving each engine its own DSL
+    (e.g. {"fofa": 'app="Tomcat"', "shodan": "http.component:tomcat"}).
+    Results are deduped on (ip, port, host/domain, protocol) with
+    per-engine `sources` merged.
     """
     selected = _select(engines, SEARCH_ENGINES)
-    if not any(e.configured for e in selected):
+    if isinstance(query, dict):
+        known = {e.name for e in SEARCH_ENGINES}
+        bad = [k for k in query if k not in known]
+        if bad:
+            raise ValueError(
+                f"unknown engine(s) in query: {bad}; available: {sorted(known)}")
+        queries = {e.name: q for e in selected
+                   if (q := query.get(e.name)) is not None}
+        if not queries:
+            raise ValueError("query dict has no entry for any selected engine")
+    else:
+        queries = {e.name: query for e in selected}
+
+    runnable = [e for e in selected
+                if e.name in queries and e.configured]
+    if not runnable:
         missing = [{"engine": e.name, "env": list(e.env_vars), "doc": e.api_doc}
-                   for e in selected]
+                   for e in selected if e.name in queries]
         return {"query": query, "assets": [], "errors": [], "hint":
                 {"message": "no engine key configured", "configure": missing}}
 
     async with httpx.AsyncClient(timeout=CLIENT_TIMEOUT, follow_redirects=True) as client:
-        tasks = [_run_engine(e, e.search(client, query, limit, page))
-                 for e in selected if e.configured]
+        tasks = [_run_engine(e, e.search(client, queries[e.name], limit, page))
+                 for e in runnable]
         outcomes = await asyncio.gather(*tasks)
 
     assets: list[Asset] = []
@@ -145,19 +168,34 @@ def engine_status_impl() -> list[dict]:
 # ------------------------------------------------------------------ tools --
 
 @mcp.tool()
-async def map_search(query: str, engines: list[str] | None = None,
+async def map_search(query: str | dict[str, str],
+                     engines: list[str] | None = None,
                      limit: int = 20, page: int = 1) -> str:
     """Search cyberspace asset mapping platforms.
 
+    Results are deduped on (ip, port, host/domain, protocol) with
+    per-engine `sources` merged; one engine's failure does not affect
+    the others (see `errors` in the response).
+
     Args:
-        query: platform query string. Passed to each selected engine as-is;
-            engines use similar but not identical DSLs (Fofa/Hunter/Quake/
-            DayDayMap are near-compatible, e.g. app="Tomcat"; Shodan/Censys/
-            ZoomEye/0.zone use their own syntax).
+        query: a string broadcast to every selected engine as-is, or a
+            dict {engine: query} giving each engine its own DSL. PREFER
+            the dict form when mixing engines with incompatible syntax,
+            e.g. {"fofa": 'app="Tomcat" && country="CN"',
+            "shodan": "http.component:tomcat country:CN"}.
+            Engines absent from the dict are skipped.
         engines: subset of ["fofa","hunter","quake","shodan","censys",
             "zoomeye","0zone","daydaymap"]; default = all configured.
         limit: results per engine per page.
         page: page number (1-based).
+
+    Engine DSL cheat sheet (use with dict-form query):
+        fofa / hunter / quake / daydaymap:
+            app="Tomcat" && country="CN"; domain="example.com"; ip="1.2.3.4/24"
+        shodan:  http.component:tomcat country:CN; hostname:example.com
+        censys:  services.service_name: HTTP and location.country: CN
+        zoomeye: app:"Tomcat" country:"CN"
+        0zone:   (company=xxx有限公司)||(title=xxx)
 
     Returns JSON: {query, total_raw, total_dedup, assets:[{ip,port,host,
     domain,url,title,service,product,protocol,org,country,city,sources}],

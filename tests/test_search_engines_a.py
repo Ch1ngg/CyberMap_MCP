@@ -112,6 +112,25 @@ def test_hunter_non_200_code_raises(monkeypatch):
         run(go())
 
 
+def test_hunter_rounds_up_page_size_and_slices_to_limit(monkeypatch):
+    """Hunter rejects page_size outside {1,10,20,50,100} (400 页大小不合法)."""
+    monkeypatch.setenv("HUNTER_KEY", "hk")
+    captured = {}
+
+    def handler(request):
+        captured["params"] = dict(request.url.params)
+        rows = [{"ip": f"10.0.0.{i}", "port": 80} for i in range(10)]
+        return httpx.Response(200, json={"code": 200, "data": {"arr": rows}})
+
+    async def go():
+        async with make_client(handler) as c:
+            return await Hunter().search(c, "x", 5, 1)
+
+    assets = run(go())
+    assert captured["params"]["page_size"] == "10"
+    assert len(assets) == 5
+
+
 # ---- quake ----
 
 def test_quake_parses_nested_and_uses_clamped_start(monkeypatch):

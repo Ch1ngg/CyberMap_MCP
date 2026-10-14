@@ -1,6 +1,6 @@
 # CyberMap MCP
 
-聚合 10 个网络空间测绘/威胁情报平台的 MCP Server：
+聚合 10 个网络空间测绘/威胁情报平台的 MCP Server。修改记录见 [CHANGELOG.md](CHANGELOG.md)。
 
 | 引擎 | 用途 | 环境变量 | 申请地址 |
 |---|---|---|---|
@@ -20,6 +20,8 @@
 - `map_search(query, engines?, limit=20, page=1)` — 一次查询多个资产测绘引擎，
   结果按 `(ip, port, host/domain, protocol)` 去重合并，每条带 `sources` 字段
   标明来源引擎；单引擎报错不影响其他引擎。
+  `query` 可以是字符串（原样广播给所有选中引擎）或字典 `{"fofa": "app=\"Tomcat\"",
+  "shodan": "http.component:tomcat"}`（各引擎用各自语法，跨 DSL 混查时推荐）。
 - `host_intel(target)` — 单个 IP/域名情报：ThreatBook IP 信誉 + VirusTotal 报告。
 - `engine_status()` — 列出各引擎 key 配置状态，配 key 前先调它。
 
