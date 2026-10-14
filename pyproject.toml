@@ -11,6 +11,12 @@ dependencies = [
 [project.scripts]
 cybermap-mcp = "cybermap_mcp.server:main"
 
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
