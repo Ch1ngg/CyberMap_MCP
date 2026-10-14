@@ -40,10 +40,10 @@ def _select(names: list[str] | None, pool: list[Engine]) -> list[Engine]:
     return [known[n] for n in names]
 
 
-async def _run_engine(engine: Engine, coro_factory):
+async def _run_engine(engine: Engine, coro):
     """Run one engine call; capture errors into a dict instead of failing all."""
     try:
-        return {"results": await coro_factory(), "error": None}
+        return {"results": await coro, "error": None}
     except EngineError as e:
         return {"results": [], "error": str(e)}
     except httpx.HTTPStatusError as e:
