@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.0] - 2026-10-16
 
 ### Added
 - `github_search` 工具：GitHub code/repositories/issues 搜索
