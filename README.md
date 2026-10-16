@@ -59,6 +59,32 @@ cybermap-mcp             # stdio 模式；等价 python -m cybermap_mcp
 }
 ```
 
+## Go 版本（go/）
+
+功能与 Python 版对齐，编译为单文件二进制，额外支持代理路由。
+
+```bash
+cd go && go build -o cybermap-mcp .
+
+./cybermap-mcp                                  # stdio（默认）
+./cybermap-mcp -transport http -addr :8080      # Streamable HTTP
+./cybermap-mcp -transport sse  -addr :8080      # SSE
+```
+
+代理（访问 Shodan/Censys/VirusTotal 等境外平台时使用）：
+
+```bash
+# 优先级：-proxy 参数 > CYBERMAP_PROXY > HTTP(S)_PROXY 环境变量
+./cybermap-mcp -proxy socks5://127.0.0.1:1080
+CYBERMAP_PROXY=http://127.0.0.1:7890 ./cybermap-mcp
+
+# 按引擎路由：只有列出的引擎走代理，国内引擎直连
+CYBERMAP_PROXY=... CYBERMAP_PROXY_ENGINES=shodan,censys,virustotal ./cybermap-mcp
+```
+
+tag 推送（`v*`）时 GitHub Actions 自动编译 linux/darwin/windows × amd64/arm64
+二进制并上传到 Release（见 `.github/workflows/build.yml`）。
+
 ## 查询语法说明
 
 各引擎 DSL 相近但不完全一致，`query` 会原样透传给每个引擎：

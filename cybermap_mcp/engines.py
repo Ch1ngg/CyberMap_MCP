@@ -278,8 +278,15 @@ class Shodan(Engine):
             http = m.get("http") or {}
             loc = m.get("location") or {}
             hostnames = m.get("hostnames") or []
+            # Shodan 新响应格式用数字 ip（主机序 IPv4 整数），旧格式用 ip_str
+            ip = m.get("ip_str") or None
+            raw_ip = m.get("ip")
+            if ip is None and isinstance(raw_ip, int):
+                ip = ".".join(str(raw_ip >> s & 0xFF) for s in (24, 16, 8, 0))
+            elif ip is None and raw_ip:
+                ip = str(raw_ip)
             out.append(self._asset(
-                ip=m.get("ip_str") or None,
+                ip=ip,
                 port=m.get("port"),
                 host=hostnames[0] if hostnames else None,
                 domain=hostnames[0] if hostnames else None,
