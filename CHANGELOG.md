@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.0] - 2026-10-16
 
 ### Added
 - Go 重写（单文件静态二进制）：10 引擎 + 3 工具全部对齐原 Python 版行为，
