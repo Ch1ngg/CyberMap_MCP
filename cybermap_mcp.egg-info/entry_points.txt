@@ -1,0 +1,2 @@
+[console_scripts]
+cybermap-mcp = cybermap_mcp.server:main

@@ -27,10 +27,15 @@
 
 ## 运行
 
+单文件静态二进制，无运行时依赖。从源码构建或下载 Release 预编译版：
+
 ```bash
-pip install .            # 或 pipx install .
-export FOFA_EMAIL=... FOFA_KEY=... HUNTER_KEY=... # 按需配置，配几个用几个
-cybermap-mcp             # stdio 模式；等价 python -m cybermap_mcp
+go build -o cybermap-mcp .                  # 需要 Go 1.24+
+
+export FOFA_EMAIL=... FOFA_KEY=... HUNTER_KEY=...   # 按需配置，配几个用几个
+./cybermap-mcp                                       # stdio（默认）
+./cybermap-mcp -transport http -addr :8080           # Streamable HTTP
+./cybermap-mcp -transport sse  -addr :8080           # SSE
 ```
 
 客户端配置（Cursor / Claude Desktop / Cline 等）：
@@ -59,19 +64,21 @@ cybermap-mcp             # stdio 模式；等价 python -m cybermap_mcp
 }
 ```
 
-## Go 版本（go/）
+## 网络传输（http / sse）
 
-功能与 Python 版对齐，编译为单文件二进制，额外支持代理路由。
+http/sse 模式监听 TCP 端口，**务必配置 token**，否则能访问端口的人都能白嫖你的引擎额度：
 
 ```bash
-cd go && go build -o cybermap-mcp .
-
-./cybermap-mcp                                  # stdio（默认）
-./cybermap-mcp -transport http -addr :8080      # Streamable HTTP
-./cybermap-mcp -transport sse  -addr :8080      # SSE
+./cybermap-mcp -transport http -addr :8080 -token <随机长串>
+# 或 CYBERMAP_TOKEN=<随机长串> cybermap-mcp -transport http
+# 客户端请求头：Authorization: Bearer <token>
 ```
 
-代理（访问 Shodan/Censys/VirusTotal 等境外平台时使用）：
+stdio 模式是本地进程通信，无需 token。
+
+## 代理
+
+访问 Shodan/Censys/VirusTotal 等境外平台时使用：
 
 ```bash
 # 优先级：-proxy 参数 > CYBERMAP_PROXY > HTTP(S)_PROXY 环境变量

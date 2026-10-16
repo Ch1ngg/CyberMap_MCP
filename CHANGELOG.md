@@ -3,21 +3,24 @@
 ## [Unreleased]
 
 ### Added
-- Go 版移植（`go/`）：10 引擎 + 3 工具全部对齐 Python 版行为，
-  支持 stdio / Streamable HTTP / SSE 三种传输，单文件静态编译
-- Go 版代理支持：`-proxy` / `CYBERMAP_PROXY`（http/https/socks5），
+- Go 重写（单文件静态二进制）：10 引擎 + 3 工具全部对齐原 Python 版行为，
+  支持 stdio / Streamable HTTP / SSE 三种传输
+- http/sse 传输 Bearer token 认证：`-token` / `CYBERMAP_TOKEN`，
+  未配置时监听端口裸奔（README 已警告）；常量时间比对防时序侧信道
+- 代理支持：`-proxy` / `CYBERMAP_PROXY`（http/https/socks5），
   `CYBERMAP_PROXY_ENGINES` 按引擎路由（境外走代理、国内直连）；
   未配置显式代理时继承 `HTTP(S)_PROXY` 环境变量
-- GitHub Actions workflow：main/PR 跑 Go vet+test 和 Python pytest；
-  `v*` tag 自动交叉编译五平台二进制并发布 GitHub Release
-- Go 版回归测试：merge 去重、Hunter page_size 取整+切片、
+- GitHub Actions workflow：main/PR 跑 go vet+test 和五平台交叉编译检查；
+  `v*` tag 自动编译五平台二进制并发布 GitHub Release
+- 回归测试：merge 去重、Hunter page_size 取整+切片、
   Shodan 数字 IP 解析+limit 切片、query 字典路由/非法 key
 
+### Removed
+- Python 实现整体移除（干净切换到 Go；旧版见 v0.0.1 tag）
+
 ### Fixed
-- Shodan: 适配新响应格式——`ip` 为数字（主机序 IPv4 整数）且无 `ip_str`；
-  Python 版同步修复
-- Shodan (Go): 响应体上限从 4MB 提到 64MB（Shodan 100 条 banner 可超 6MB，
-  截断会导致静默零结果）
+- Shodan: 适配新响应格式——`ip` 为数字（主机序 IPv4 整数）且无 `ip_str`
+- Shodan: 响应体上限 64MB（100 条 banner 可超 6MB，截断会导致静默零结果）
 
 ## [0.0.1] - 2026-10-14
 

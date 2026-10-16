@@ -1,4 +1,4 @@
-module github.com/Ch1ngg/CyberMap_MCP/go
+module github.com/Ch1ngg/CyberMap_MCP
 
 go 1.26.5
 

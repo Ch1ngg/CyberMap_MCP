@@ -15,6 +15,8 @@ var (
 	flagProxy     = flag.String("proxy", "", "proxy URL (http://, https:// or socks5://); "+
 		"overrides CYBERMAP_PROXY; HTTP(S)_PROXY env vars are the fallback. "+
 		"CYBERMAP_PROXY_ENGINES=shodan,censys limits the proxy to those engines")
+	flagToken = flag.String("token", "", "bearer token required for http/sse transports "+
+		"(or CYBERMAP_TOKEN); empty = no auth — do not expose the listener without it")
 )
 
 const mapSearchDesc = `Search cyberspace asset mapping platforms.
@@ -101,6 +103,10 @@ func newServer() *mcp.Server {
 func main() {
 	flag.Parse()
 	initProxy(*flagProxy)
+	authToken = *flagToken
+	if authToken == "" {
+		authToken = envKey("CYBERMAP_TOKEN")
+	}
 	server := newServer()
 	ctx := context.Background()
 
@@ -111,12 +117,12 @@ func main() {
 		}
 	case "http":
 		h := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil)
-		log.Printf("cybermap-mcp streamable HTTP listening on %s (POST here)", *flagAddr)
-		log.Fatal(http.ListenAndServe(*flagAddr, h))
+		log.Printf("cybermap-mcp streamable HTTP listening on %s (POST here, auth: %v)", *flagAddr, authToken != "")
+		log.Fatal(http.ListenAndServe(*flagAddr, withAuth(h)))
 	case "sse":
 		h := mcp.NewSSEHandler(func(*http.Request) *mcp.Server { return server }, nil)
-		log.Printf("cybermap-mcp SSE listening on %s", *flagAddr)
-		log.Fatal(http.ListenAndServe(*flagAddr, h))
+		log.Printf("cybermap-mcp SSE listening on %s (auth: %v)", *flagAddr, authToken != "")
+		log.Fatal(http.ListenAndServe(*flagAddr, withAuth(h)))
 	default:
 		log.Fatalf("unknown transport %q: want stdio | http | sse", *flagTransport)
 	}

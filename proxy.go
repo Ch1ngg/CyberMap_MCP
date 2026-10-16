@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"log"
 	"net/http"
 	"net/url"
@@ -55,6 +56,27 @@ func initProxy(flagValue string) {
 		proxyClient = &http.Client{Timeout: 90 * time.Second, Transport: newTransport(http.ProxyURL(u))}
 	}
 	directClient = &http.Client{Timeout: 90 * time.Second, Transport: newTransport(direct)}
+}
+
+// --- bearer token auth for network transports ---
+
+var authToken string
+
+// withAuth requires "Authorization: Bearer <token>" when a token is
+// configured via -token or CYBERMAP_TOKEN. stdio never goes through this.
+func withAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if authToken == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if subtle.ConstantTimeCompare([]byte(got), []byte(authToken)) != 1 {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // httpClientFor picks the proxied or direct client for an engine.
