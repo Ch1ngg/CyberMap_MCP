@@ -169,9 +169,9 @@ func postJSON(ctx context.Context, engine string, client *http.Client, url strin
 
 type Fofa struct{}
 
-func (Fofa) Name() string     { return "fofa" }
+func (Fofa) Name() string      { return "fofa" }
 func (Fofa) EnvVars() []string { return []string{"FOFA_EMAIL", "FOFA_KEY"} }
-func (Fofa) APIDoc() string   { return "https://fofa.info/userInfo" }
+func (Fofa) APIDoc() string    { return "https://fofa.info/userInfo" }
 
 var fofaFields = []string{"ip", "host", "port", "title", "domain", "server",
 	"protocol", "country_name", "city", "as_organization"}
@@ -226,9 +226,9 @@ func (Fofa) Search(ctx context.Context, client *http.Client, query string, limit
 
 type Hunter struct{}
 
-func (Hunter) Name() string     { return "hunter" }
+func (Hunter) Name() string      { return "hunter" }
 func (Hunter) EnvVars() []string { return []string{"HUNTER_KEY"} }
-func (Hunter) APIDoc() string   { return "https://hunter.qianxin.com/home/personalInfo?to=api" }
+func (Hunter) APIDoc() string    { return "https://hunter.qianxin.com/home/personalInfo?to=api" }
 
 // hunterPageSize rounds up: Hunter only accepts page_size in {1,10,20,50,100}.
 func hunterPageSize(limit int) int {
@@ -325,9 +325,9 @@ func shodanIP(m map[string]any) string {
 
 type Quake struct{}
 
-func (Quake) Name() string     { return "quake" }
+func (Quake) Name() string      { return "quake" }
 func (Quake) EnvVars() []string { return []string{"QUAKE_KEY"} }
-func (Quake) APIDoc() string   { return "https://quake.360.net/quake/#/personal?tab=message" }
+func (Quake) APIDoc() string    { return "https://quake.360.net/quake/#/personal?tab=message" }
 
 var quakeInclude = []string{"ip", "port", "transport", "hostname", "domain", "org",
 	"service.name", "service.product", "service.http.host", "service.http.title",
@@ -377,9 +377,9 @@ func (Quake) Search(ctx context.Context, client *http.Client, query string, limi
 
 type Shodan struct{}
 
-func (Shodan) Name() string     { return "shodan" }
+func (Shodan) Name() string      { return "shodan" }
 func (Shodan) EnvVars() []string { return []string{"SHODAN_KEY"} }
-func (Shodan) APIDoc() string   { return "https://account.shodan.io/" }
+func (Shodan) APIDoc() string    { return "https://account.shodan.io/" }
 
 func (Shodan) Search(ctx context.Context, client *http.Client, query string, limit, page int) ([]Asset, error) {
 	if err := require("shodan", Shodan{}.EnvVars(), Shodan{}.APIDoc()); err != nil {
@@ -428,9 +428,9 @@ func (Shodan) Search(ctx context.Context, client *http.Client, query string, lim
 
 type Censys struct{}
 
-func (Censys) Name() string     { return "censys" }
+func (Censys) Name() string      { return "censys" }
 func (Censys) EnvVars() []string { return []string{"CENSYS_ID", "CENSYS_SECRET"} }
-func (Censys) APIDoc() string   { return "https://search.censys.io/account/api" }
+func (Censys) APIDoc() string    { return "https://search.censys.io/account/api" }
 
 func (Censys) Search(ctx context.Context, client *http.Client, query string, limit, page int) ([]Asset, error) {
 	if err := require("censys", Censys{}.EnvVars(), Censys{}.APIDoc()); err != nil {
@@ -491,9 +491,9 @@ func (Censys) Search(ctx context.Context, client *http.Client, query string, lim
 
 type ZoomEye struct{}
 
-func (ZoomEye) Name() string     { return "zoomeye" }
+func (ZoomEye) Name() string      { return "zoomeye" }
 func (ZoomEye) EnvVars() []string { return []string{"ZOOMEYE_KEY"} }
-func (ZoomEye) APIDoc() string   { return "https://www.zoomeye.org/profile" }
+func (ZoomEye) APIDoc() string    { return "https://www.zoomeye.org/profile" }
 
 func zoomeyeName(geo map[string]any, key string) string {
 	names := sub(geo, key, "names")
@@ -546,9 +546,9 @@ func (ZoomEye) Search(ctx context.Context, client *http.Client, query string, li
 
 type Zone0 struct{}
 
-func (Zone0) Name() string     { return "0zone" }
+func (Zone0) Name() string      { return "0zone" }
 func (Zone0) EnvVars() []string { return []string{"ZONE0_KEY"} }
-func (Zone0) APIDoc() string   { return "https://0.zone/apply" }
+func (Zone0) APIDoc() string    { return "https://0.zone/apply" }
 
 func (Zone0) Search(ctx context.Context, client *http.Client, query string, limit, page int) ([]Asset, error) {
 	if err := require("0zone", Zone0{}.EnvVars(), Zone0{}.APIDoc()); err != nil {
@@ -587,9 +587,9 @@ func (Zone0) Search(ctx context.Context, client *http.Client, query string, limi
 
 type DayDayMap struct{}
 
-func (DayDayMap) Name() string     { return "daydaymap" }
+func (DayDayMap) Name() string      { return "daydaymap" }
 func (DayDayMap) EnvVars() []string { return []string{"DAYDAYMAP_KEY"} }
-func (DayDayMap) APIDoc() string   { return "https://www.daydaymap.com/help/document?type=api-auth" }
+func (DayDayMap) APIDoc() string    { return "https://www.daydaymap.com/help/document?type=api-auth" }
 
 func (DayDayMap) Search(ctx context.Context, client *http.Client, query string, limit, page int) ([]Asset, error) {
 	if err := require("daydaymap", DayDayMap{}.EnvVars(), DayDayMap{}.APIDoc()); err != nil {
@@ -639,9 +639,9 @@ func (DayDayMap) Search(ctx context.Context, client *http.Client, query string, 
 
 type ThreatBook struct{}
 
-func (ThreatBook) Name() string     { return "threatbook" }
+func (ThreatBook) Name() string      { return "threatbook" }
 func (ThreatBook) EnvVars() []string { return []string{"THREATBOOK_KEY"} }
-func (ThreatBook) APIDoc() string   { return "https://x.threatbook.com/v5/myApi" }
+func (ThreatBook) APIDoc() string    { return "https://x.threatbook.com/v5/myApi" }
 
 func (ThreatBook) IPReputation(ctx context.Context, client *http.Client, ip string) (map[string]any, error) {
 	if err := require("threatbook", ThreatBook{}.EnvVars(), ThreatBook{}.APIDoc()); err != nil {
@@ -667,7 +667,7 @@ func (ThreatBook) IPReputation(ctx context.Context, client *http.Client, ip stri
 		"engine": "threatbook", "ip": ip,
 		"severity": rep["severity"], "judgments": rep["judgments"],
 		"tags_classes": rep["tags_classes"], "location": location,
-		"carrier": sub(rep, "basic")["carrier"],
+		"carrier":    sub(rep, "basic")["carrier"],
 		"confidence": rep["confidence_level"], "update_time": rep["update_time"],
 	}, nil
 }
@@ -676,9 +676,9 @@ func (ThreatBook) IPReputation(ctx context.Context, client *http.Client, ip stri
 
 type VirusTotal struct{}
 
-func (VirusTotal) Name() string     { return "virustotal" }
+func (VirusTotal) Name() string      { return "virustotal" }
 func (VirusTotal) EnvVars() []string { return []string{"VT_KEY"} }
-func (VirusTotal) APIDoc() string   { return "https://www.virustotal.com/gui/user/<user>/apikey" }
+func (VirusTotal) APIDoc() string    { return "https://www.virustotal.com/gui/user/<user>/apikey" }
 
 func (VirusTotal) Report(ctx context.Context, client *http.Client, target string, isIP bool) (map[string]any, error) {
 	if err := require("virustotal", VirusTotal{}.EnvVars(), VirusTotal{}.APIDoc()); err != nil {

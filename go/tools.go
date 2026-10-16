@@ -10,12 +10,12 @@ import (
 
 // MapSearchResult mirrors the Python tool's JSON output.
 type MapSearchResult struct {
-	Query      any     `json:"query"`
-	TotalRaw   int     `json:"total_raw,omitempty"`
-	TotalDedup int     `json:"total_dedup,omitempty"`
-	Assets     []Asset `json:"assets"`
+	Query      any      `json:"query"`
+	TotalRaw   int      `json:"total_raw,omitempty"`
+	TotalDedup int      `json:"total_dedup,omitempty"`
+	Assets     []Asset  `json:"assets"`
 	Errors     []string `json:"errors"`
-	Hint       any     `json:"hint,omitempty"`
+	Hint       any      `json:"hint,omitempty"`
 }
 
 func engineByName(name string) SearchEngine {
@@ -179,9 +179,9 @@ func MapSearch(ctx context.Context, query any, engines []string, limit, page int
 }
 
 type HostIntelResult struct {
-	Target string           `json:"target"`
-	Intel  map[string]any   `json:"intel"`
-	Errors []string         `json:"errors"`
+	Target string         `json:"target"`
+	Intel  map[string]any `json:"intel"`
+	Errors []string       `json:"errors"`
 }
 
 func HostIntel(ctx context.Context, target string) HostIntelResult {
