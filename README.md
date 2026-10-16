@@ -14,6 +14,8 @@
 | DayDayMap | 资产搜索 | `DAYDAYMAP_KEY` | https://www.daydaymap.com/help/document?type=api-auth |
 | ThreatBook(微步) | IP 情报 | `THREATBOOK_KEY` | https://x.threatbook.com/v5/myApi |
 | VirusTotal | IP/域名情报 | `VT_KEY` | https://www.virustotal.com/gui/ (个人 API key) |
+| GitHub | 代码/仓库搜索 | `GITHUB_TOKEN`（code 搜索必需） | https://github.com/settings/tokens |
+| NVD | CVE 漏洞库 | `NVD_API_KEY`（可选，提速率） | https://nvd.nist.gov/developers/request-an-api-key |
 
 ## 工具
 
@@ -61,7 +63,9 @@ export FOFA_EMAIL=... FOFA_KEY=... HUNTER_KEY=...   # 按需配置，配几个�
         "ZONE0_KEY": "…",
         "DAYDAYMAP_KEY": "…",
         "THREATBOOK_KEY": "…",
-        "VT_KEY": "…"
+        "VT_KEY": "…",
+        "GITHUB_TOKEN": "…",
+        "NVD_API_KEY": "…"
       }
     }
   }
