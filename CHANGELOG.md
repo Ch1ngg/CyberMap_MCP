@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `github_search` 工具：GitHub code/repositories/issues 搜索
+  （code 需 `GITHUB_TOKEN`，其余无需）；常用于打点阶段的泄露/dork 排查
+- `cve_search` 工具：NVD 漏洞库查询，支持 CVE 编号精确查和关键词模糊查，
+  返回严重等级/CVSS 分数/参考链接；`NVD_API_KEY` 可选提速率上限
+
 ## [0.1.0] - 2026-10-16
 
 ### Added

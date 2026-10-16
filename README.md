@@ -23,6 +23,10 @@
   `query` 可以是字符串（原样广播给所有选中引擎）或字典 `{"fofa": "app=\"Tomcat\"",
   "shodan": "http.component:tomcat"}`（各引擎用各自语法，跨 DSL 混查时推荐）。
 - `host_intel(target)` — 单个 IP/域名情报：ThreatBook IP 信誉 + VirusTotal 报告。
+- `github_search(query, type=code|repositories|issues, limit=20)` — GitHub 搜索：
+  code 搜泄露/dork（需要 `GITHUB_TOKEN`），repositories/issues 无需 token。
+- `cve_search(query, limit=20)` — NVD 漏洞库：传 CVE 编号精确查（`CVE-2021-44228`）
+  或关键词模糊查（`log4j`）；`NVD_API_KEY` 可选，配置后提速率上限。
 - `engine_status()` — 列出各引擎 key 配置状态，配 key 前先调它。
 
 ## 运行

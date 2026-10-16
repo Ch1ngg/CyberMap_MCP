@@ -55,6 +55,17 @@ type HostIntelInput struct {
 	Target string `json:"target" jsonschema:"IP address or domain. IP: ThreatBook reputation + VirusTotal report. Domain: VirusTotal report"`
 }
 
+type GitHubSearchInput struct {
+	Query string `json:"query" jsonschema:"REQUIRED. GitHub search query, e.g. '\"example.com\" apikey' (code dork), 'org:target' (repositories)"`
+	Type  string `json:"type,omitempty" jsonschema:"code | repositories | issues (default code). code search requires GITHUB_TOKEN"`
+	Limit int    `json:"limit,omitempty" jsonschema:"max results, 1-100 (default 20)"`
+}
+
+type CVESearchInput struct {
+	Query string `json:"query" jsonschema:"REQUIRED. CVE id (e.g. CVE-2021-44228) or keyword (e.g. log4j, nginx)"`
+	Limit int    `json:"limit,omitempty" jsonschema:"max results, 1-100 (default 20)"`
+}
+
 type EmptyInput struct{}
 
 func mapSearchHandler(ctx context.Context, _ *mcp.CallToolRequest, in MapSearchInput) (*mcp.CallToolResult, any, error) {
@@ -80,6 +91,30 @@ func engineStatusHandler(ctx context.Context, _ *mcp.CallToolRequest, _ EmptyInp
 	return nil, map[string]any{"engines": EngineStatus()}, nil
 }
 
+func githubSearchHandler(ctx context.Context, _ *mcp.CallToolRequest, in GitHubSearchInput) (*mcp.CallToolResult, any, error) {
+	limit := in.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	res, err := GitHubSearch(ctx, httpClientFor("github"), in.Query, in.Type, limit)
+	if err != nil {
+		return nil, map[string]any{"error": err.Error()}, nil
+	}
+	return nil, res, nil
+}
+
+func cveSearchHandler(ctx context.Context, _ *mcp.CallToolRequest, in CVESearchInput) (*mcp.CallToolResult, any, error) {
+	limit := in.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	res, err := CVESearch(ctx, httpClientFor("nvd"), in.Query, limit)
+	if err != nil {
+		return nil, map[string]any{"error": err.Error()}, nil
+	}
+	return nil, res, nil
+}
+
 func newServer() *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{Name: "cybermap", Version: "0.0.1"}, nil)
 	mcp.AddTool(s, &mcp.Tool{
@@ -97,6 +132,19 @@ func newServer() *mcp.Server {
 		Description: "List all supported engines, their env-var keys, and whether each is " +
 			"currently configured. Call this first if map_search reports no engines.",
 	}, engineStatusHandler)
+	mcp.AddTool(s, &mcp.Tool{
+		Name: "github_search",
+		Description: "Search GitHub: code (find leaked keys/dorks, requires GITHUB_TOKEN), " +
+			"repositories, or issues. Returns JSON: {type, total, items, warnings}. " +
+			"Useful for recon: find a target's repos, leaked configs, exposed secrets.",
+	}, githubSearchHandler)
+	mcp.AddTool(s, &mcp.Tool{
+		Name: "cve_search",
+		Description: "Search the NVD vulnerability database by CVE id or keyword " +
+			"(e.g. a product name found via map_search). Returns JSON: {query, total, " +
+			"results:[{id, description, severity, score, published, references}]}. " +
+			"NVD_API_KEY env var optional (raises rate limit).",
+	}, cveSearchHandler)
 	return s
 }
 
