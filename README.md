@@ -44,7 +44,7 @@ export FOFA_EMAIL=... FOFA_KEY=... HUNTER_KEY=...   # 按需配置，配几个�
 ./cybermap-mcp -transport sse  -addr :8080           # SSE
 ```
 
-客户端配置（Cursor / Claude Desktop / Cline 等）：
+客户端配置——**stdio 模式**（客户端拉起进程，本地管道通信，无需 token）：
 
 ```json
 {
@@ -66,12 +66,29 @@ export FOFA_EMAIL=... FOFA_KEY=... HUNTER_KEY=...   # 按需配置，配几个�
         "VT_KEY": "…",
         "GITHUB_TOKEN": "…",
         "NVD_API_KEY": "…",
-
-        "_服务配置_": "以下三项对应命令行 -token/-proxy 参数，JSON 配置无法传参时用环境变量",
-        "CYBERMAP_TOKEN": "http/sse 传输的 Bearer token（等价 -token）",
-        "CYBERMAP_PROXY": "代理 URL：http:// https:// socks5://（等价 -proxy）",
-        "CYBERMAP_PROXY_ENGINES": "按引擎路由，如 shodan,censys,github,nvd；留空=全部走代理"
+        "CYBERMAP_PROXY": "socks5://127.0.0.1:1080",
+        "CYBERMAP_PROXY_ENGINES": "shodan,censys,github,nvd"
       }
+    }
+  }
+}
+```
+
+`CYBERMAP_PROXY`（等价 `-proxy` 参数）在 stdio 模式同样生效——它管**出站**请求
+走代理，与传输方式无关；留空则继承系统 `HTTP(S)_PROXY`。
+
+客户端配置——**http/sse 远程模式**（服务端单独启动，客户端只连 URL）：
+
+```bash
+cybermap-mcp -transport http -addr 0.0.0.0:8080 -token <随机长串>   # 服务端
+```
+
+```json
+{
+  "mcpServers": {
+    "cybermap": {
+      "url": "http://your-host:8080",
+      "headers": { "Authorization": "Bearer <随机长串>" }
     }
   }
 }
