@@ -170,7 +170,7 @@ func postJSON(ctx context.Context, engine string, client *http.Client, url strin
 type Fofa struct{}
 
 func (Fofa) Name() string      { return "fofa" }
-func (Fofa) EnvVars() []string { return []string{"FOFA_EMAIL", "FOFA_KEY"} }
+func (Fofa) EnvVars() []string { return []string{"FOFA_KEY"} }
 func (Fofa) APIDoc() string    { return "https://fofa.info/userInfo" }
 
 var fofaFields = []string{"ip", "host", "port", "title", "domain", "server",
@@ -181,7 +181,6 @@ func (Fofa) Search(ctx context.Context, client *http.Client, query string, limit
 		return nil, err
 	}
 	data, err := getJSON(ctx, "fofa", client, "https://fofa.info/api/v1/search/all", map[string]string{
-		"email":   envKey("FOFA_EMAIL"),
 		"key":     envKey("FOFA_KEY"),
 		"qbase64": b64(query),
 		"size":    fmt.Sprint(clamp(limit, 1, 10000)),

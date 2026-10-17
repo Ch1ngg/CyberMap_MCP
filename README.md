@@ -4,7 +4,7 @@
 
 | 引擎 | 用途 | 环境变量 | 申请地址 |
 |---|---|---|---|
-| Fofa | 资产搜索 | `FOFA_EMAIL`, `FOFA_KEY` | https://fofa.info/userInfo |
+| Fofa | 资产搜索 | `FOFA_KEY` | https://fofa.info/userInfo |
 | Hunter(奇安信) | 资产搜索 | `HUNTER_KEY` | https://hunter.qianxin.com/home/personalInfo?to=api |
 | Quake(360) | 资产搜索 | `QUAKE_KEY` | https://quake.360.net/quake/#/personal?tab=message |
 | Shodan | 资产搜索 | `SHODAN_KEY` | https://account.shodan.io/ |
@@ -38,7 +38,7 @@
 ```bash
 go build -o cybermap-mcp .                  # 需要 Go 1.24+
 
-export FOFA_EMAIL=... FOFA_KEY=... HUNTER_KEY=...   # 按需配置，配几个用几个
+export FOFA_KEY=... HUNTER_KEY=...   # 按需配置，配几个用几个
 ./cybermap-mcp                                       # stdio（默认）
 ./cybermap-mcp -transport http -addr :8080           # Streamable HTTP
 ./cybermap-mcp -transport sse  -addr :8080           # SSE
@@ -52,7 +52,6 @@ export FOFA_EMAIL=... FOFA_KEY=... HUNTER_KEY=...   # 按需配置，配几个�
     "cybermap": {
       "command": "cybermap-mcp",
       "env": {
-        "FOFA_EMAIL": "you@example.com",
         "FOFA_KEY": "…",
         "HUNTER_KEY": "…",
         "QUAKE_KEY": "…",
