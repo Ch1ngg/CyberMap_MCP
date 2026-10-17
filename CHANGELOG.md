@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.0] - 2026-10-16
 
 ### Changed
 - Fofa 改为纯 `FOFA_KEY` 认证，移除 `FOFA_EMAIL`（实测 Fofa v1 API 已兼容单 key）
