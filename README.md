@@ -1,6 +1,6 @@
 # CyberMap MCP
 
-聚合 10 个网络空间测绘/威胁情报平台的 MCP Server。修改记录见 [CHANGELOG.md](CHANGELOG.md)。
+聚合 12 个网络空间测绘/威胁情报/漏洞平台的 MCP Server。修改记录见 [CHANGELOG.md](CHANGELOG.md)。
 
 | 引擎 | 用途 | 环境变量 | 申请地址 |
 |---|---|---|---|
@@ -65,7 +65,12 @@ export FOFA_EMAIL=... FOFA_KEY=... HUNTER_KEY=...   # 按需配置，配几个�
         "THREATBOOK_KEY": "…",
         "VT_KEY": "…",
         "GITHUB_TOKEN": "…",
-        "NVD_API_KEY": "…"
+        "NVD_API_KEY": "…",
+
+        "_服务配置_": "以下三项对应命令行 -token/-proxy 参数，JSON 配置无法传参时用环境变量",
+        "CYBERMAP_TOKEN": "http/sse 传输的 Bearer token（等价 -token）",
+        "CYBERMAP_PROXY": "代理 URL：http:// https:// socks5://（等价 -proxy）",
+        "CYBERMAP_PROXY_ENGINES": "按引擎路由，如 shodan,censys,github,nvd；留空=全部走代理"
       }
     }
   }
