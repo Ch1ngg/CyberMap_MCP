@@ -201,3 +201,111 @@ func tycICP(ctx context.Context, client *http.Client, id string) ([]icpHit, erro
 	}
 	return hits, nil
 }
+
+// aqc* 一律不发送 Cookie：PassiveRecon 硬编码的 BAIDUID 已被百度拉黑，
+// 携带旧 cookie 必触发 302 验证码；裸请求实测放行（2026-10-19 验证）。
+
+func aqcSearch(ctx context.Context, client *http.Client, keyword string, limit int) ([]CompanyBrief, error) {
+	u := "https://www.aiqicha.com/wechat/searchListAjax?q=" + url.QueryEscape(keyword) + "&t=0&p=1&s=30&o=0&f=null"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", aqcUA)
+	req.Header.Set("smart-refer", "/pages/s/index?q=&t=0&fr=query")
+	req.Header.Set("Referer", "https://servicewechat.com")
+	m, err := doHTTP("aqc", client, req)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := m["status"]; !ok {
+		return nil, &EngineError{"aqc", "unexpected response shape（可能触发百度风控/验证码）"}
+	}
+	out := []CompanyBrief{}
+	for i, it := range arr(sub(m, "data"), "resultList") {
+		if i >= limit {
+			break
+		}
+		c, ok := it.(map[string]any)
+		if !ok {
+			continue
+		}
+		out = append(out, CompanyBrief{
+			Source:      "aqc",
+			ID:          jstr(c, "pid"),
+			Name:        stripEm(jstr(c, "entName")),
+			LegalPerson: stripEm(jstr(c, "legalPerson")),
+			RegCapital:  jstr(c, "regCap"),
+			Estiblish:   jstr(c, "validityFrom"),
+		})
+	}
+	return out, nil
+}
+
+func aqcEquity(ctx context.Context, client *http.Client, pid string) ([]equityChild, error) {
+	u := "https://www.aiqicha.com/stockchart/stockchartAjax?pid=" + url.QueryEscape(pid) + "&drill=2"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", aqcUA)
+	req.Header.Set("Referer", "https://www.aiqicha.com/company_detail_"+pid)
+	m, err := doHTTP("aqc", client, req)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := m["status"]; !ok {
+		return nil, &EngineError{"aqc", "unexpected response shape（可能触发百度风控/验证码）"}
+	}
+	out := []equityChild{}
+	for _, it := range arr(sub(m, "data", "investRecordData"), "list") {
+		c, ok := it.(map[string]any)
+		if !ok {
+			continue
+		}
+		out = append(out, equityChild{
+			ID:        jstr(c, "pid"),
+			Name:      stripEm(jstr(c, "entName")),
+			Percent:   parsePercent(jstr(c, "regRate")),
+			RegStatus: jstr(c, "regStatus"),
+			HasNode:   true, // 该接口无 hasNode 提示，递归由 depth/maxCompanies 约束
+		})
+	}
+	return out, nil
+}
+
+func aqcICP(ctx context.Context, client *http.Client, pid string) ([]icpHit, error) {
+	u := "https://www.aiqicha.com/cs/icpInfoAjax?pid=" + url.QueryEscape(pid) + "&p=1&size=100"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", aqcUA)
+	req.Header.Set("Referer", "https://www.aiqicha.com/company_detail_"+pid)
+	m, err := doHTTP("aqc", client, req)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := m["status"]; !ok {
+		return nil, &EngineError{"aqc", "unexpected response shape（可能触发百度风控/验证码）"}
+	}
+	hits := []icpHit{}
+	for _, it := range arr(sub(m, "data"), "list") { // total=0 时 list 为 null，arr() 返回 nil
+		c, ok := it.(map[string]any)
+		if !ok {
+			continue
+		}
+		no := jstr(c, "icpNo")
+		for _, d := range jstrList(c, "domain") {
+			if nd := normDomain(d); nd != "" {
+				hits = append(hits, icpHit{nd, no})
+			}
+		}
+		for _, h := range jstrList(c, "homeSite") {
+			if nd := normDomain(h); nd != "" {
+				hits = append(hits, icpHit{nd, no})
+			}
+		}
+	}
+	return hits, nil
+}

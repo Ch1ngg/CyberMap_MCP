@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -124,5 +125,80 @@ func TestTycSearchDetectsRiskControl(t *testing.T) {
 	_, err := tycSearch(context.Background(), rewriteHostClient(srv), "腾讯", 10)
 	if err == nil {
 		t.Fatal("want risk-control error, got nil")
+	}
+}
+
+func TestAqcSearchParsesResultList(t *testing.T) {
+	srv := pathFixture(t, map[string]string{
+		"/wechat/searchListAjax": `{"status":0,"data":{"resultList":[
+			{"pid":"31610236813812","entName":"深圳市<em>腾讯</em>计算机系统有限公司","entType":"有限责任公司",
+			 "validityFrom":"1998-11","legalPerson":"马<em>化</em>腾","regCap":"6500万"}]}}`,
+	})
+	defer srv.Close()
+	out, err := aqcSearch(context.Background(), rewriteHostClient(srv), "腾讯", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("want 1, got %d", len(out))
+	}
+	c := out[0]
+	if c.ID != "31610236813812" || c.Name != "深圳市腾讯计算机系统有限公司" || c.LegalPerson != "马化腾" {
+		t.Fatalf("bad brief: %+v", c)
+	}
+}
+
+func TestAqcSearchDetectsRiskControl(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte("<html>wappass captcha</html>"))
+	}))
+	defer srv.Close()
+	_, err := aqcSearch(context.Background(), rewriteHostClient(srv), "腾讯", 10)
+	if err == nil || !strings.Contains(err.Error(), "风控") {
+		t.Fatalf("want risk-control error, got %v", err)
+	}
+}
+
+func TestAqcEquityParsesInvestRecord(t *testing.T) {
+	srv := pathFixture(t, map[string]string{
+		"/stockchart/stockchartAjax": `{"status":0,"data":{"investRecordData":{"total":2,"list":[
+			{"pid":"11439736750142","entName":"深圳市腾讯魔方科技有限公司","regRate":"100%","regCapital":"1,000万(元)"},
+			{"pid":"222","entName":"小比例参股公司","regRate":"3.564292%"}]}}}`,
+	})
+	defer srv.Close()
+	out, err := aqcEquity(context.Background(), rewriteHostClient(srv), "32330502770552")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out) != 2 || out[0].Percent != 100 || out[1].Percent != 3.564292 {
+		t.Fatalf("bad children: %+v", out)
+	}
+	if !out[0].HasNode { // aqc 无 hasNode 字段，恒 true（由 depth/cap 约束递归）
+		t.Fatalf("HasNode should default true: %+v", out[0])
+	}
+}
+
+func TestAqcICPExtractsDomainsAndNullList(t *testing.T) {
+	srv := pathFixture(t, map[string]string{
+		"/cs/icpInfoAjax": `{"status":0,"data":{"total":1,"list":[
+			{"domain":["hudongcdn.com"],"homeSite":["www.hudongcdn.com"],"icpNo":"粤ICP备15049694号-6","siteName":"x"}]}}`,
+	})
+	defer srv.Close()
+	hits, err := aqcICP(context.Background(), rewriteHostClient(srv), "32330502770552")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 2 || hits[0].icpNo != "粤ICP备15049694号-6" {
+		t.Fatalf("bad hits: %+v", hits)
+	}
+
+	srv2 := pathFixture(t, map[string]string{
+		"/cs/icpInfoAjax": `{"status":0,"data":{"total":0,"list":null}}`,
+	})
+	defer srv2.Close()
+	hits, err = aqcICP(context.Background(), rewriteHostClient(srv2), "10611165021909")
+	if err != nil || len(hits) != 0 {
+		t.Fatalf("null list should give 0 hits nil err, got %+v, %v", hits, err)
 	}
 }
