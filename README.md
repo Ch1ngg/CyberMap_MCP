@@ -1,6 +1,6 @@
 # CyberMap MCP
 
-聚合 12 个网络空间测绘/威胁情报/漏洞平台的 MCP Server。修改记录见 [CHANGELOG.md](CHANGELOG.md)。
+聚合 12 个网络空间测绘/威胁情报/漏洞平台 + 企业信息侦察（免 key）的 MCP Server。修改记录见 [CHANGELOG.md](CHANGELOG.md)。
 
 | 引擎 | 用途 | 环境变量 | 申请地址 |
 |---|---|---|---|
@@ -29,6 +29,11 @@
   code 搜泄露/dork（需要 `GITHUB_TOKEN`），repositories/issues 无需 token。
 - `cve_search(query, limit=20)` — NVD 漏洞库：传 CVE 编号精确查（`CVE-2021-44228`）
   或关键词模糊查（`log4j`）；`NVD_API_KEY` 可选，配置后提速率上限。
+- `company_recon(keyword, sources?, depth=2, min_percent=0, max_companies=20, search_limit=10)` —
+  中国企业侦察（天眼查/爱企查，**无需 key**）：关键词搜公司 → 最佳命中公司做股权穿透
+  （子公司，支持持股比例过滤、跳过已注销）→ 树中每家公司的 ICP 备案域名。
+  返回 `companies`（含法人/邮箱/电话）、`equity_tree`（含持股路径）、`domains`（双源合并去重）。
+  代理路由名（`CYBERMAP_PROXY_ENGINES`）：`tyc`、`aqc`。
 - `engine_status()` — 列出各引擎 key 配置状态，配 key 前先调它。
 
 ## 运行

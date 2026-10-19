@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0] - 2026-10-19
+
+### Added
+- `company_recon` 工具：天眼查 + 爱企查免 key 企业侦察。关键词 → 公司搜索 →
+  股权穿透树（二级公司，支持 `min_percent` 比例过滤、跳过注销、防环与数量上限）→
+  各公司 ICP 备案域名；双源域名按 domain 合并。接口均来自两家的小程序公开端点，
+  实测 2026-10-19 无鉴权可用（爱企查链路不得携带任何 Cookie，旧 BAIDUID 会触发验证码）。
+
+### Fixed
+- 爱企查（aqc）请求强制 HTTP/1.1：百度 WAF 会直接断开 Go HTTP/2 的 TLS 握手
+  （连接 EOF），`proxy.go` 新增 h1 transport 变体与 `http11ClientFor`
+
 ## [0.3.0] - 2026-10-16
 
 ### Changed
