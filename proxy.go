@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/subtle"
+	"crypto/tls"
 	"log"
 	"net/http"
 	"net/url"
@@ -18,15 +19,25 @@ import (
 // listed engines use the explicit proxy and the rest connect directly
 // (e.g. "shodan,censys,virustotal" proxies only the overseas platforms).
 var (
-	directClient *http.Client
-	proxyClient  *http.Client
-	proxyEngines map[string]bool
+	directClient   *http.Client
+	proxyClient    *http.Client
+	directClientH1 *http.Client
+	proxyClientH1  *http.Client
+	proxyEngines   map[string]bool
 )
 
 func newTransport(proxy func(*http.Request) (*url.URL, error)) *http.Transport {
 	t := http.DefaultTransport.(*http.Transport).Clone()
 	t.Proxy = proxy
 	t.ResponseHeaderTimeout = 60 * time.Second
+	return t
+}
+
+// newTransportH1 强制 HTTP/1.1：爱企查的 WAF 会直接断开 Go 的 HTTP/2
+// TLS 握手（连接 EOF），h1 正常（2026-10-19 实测）。
+func newTransportH1(proxy func(*http.Request) (*url.URL, error)) *http.Transport {
+	t := newTransport(proxy)
+	t.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
 	return t
 }
 
@@ -54,8 +65,10 @@ func initProxy(flagValue string) {
 			log.Fatal("invalid proxy URL: ", err)
 		}
 		proxyClient = &http.Client{Timeout: 90 * time.Second, Transport: newTransport(http.ProxyURL(u))}
+		proxyClientH1 = &http.Client{Timeout: 90 * time.Second, Transport: newTransportH1(http.ProxyURL(u))}
 	}
 	directClient = &http.Client{Timeout: 90 * time.Second, Transport: newTransport(direct)}
+	directClientH1 = &http.Client{Timeout: 90 * time.Second, Transport: newTransportH1(direct)}
 }
 
 // --- bearer token auth for network transports ---
@@ -83,6 +96,18 @@ func withAuth(next http.Handler) http.Handler {
 func httpClientFor(engine string) *http.Client {
 	if proxyClient != nil && (len(proxyEngines) == 0 || proxyEngines[engine]) {
 		return proxyClient
+	}
+	return directClient
+}
+
+// http11ClientFor 同上但强制 HTTP/1.1（aqc 用）；测试只替换 directClient 时
+// H1 变体可能未初始化，回落到 directClient。
+func http11ClientFor(engine string) *http.Client {
+	if proxyClientH1 != nil && (len(proxyEngines) == 0 || proxyEngines[engine]) {
+		return proxyClientH1
+	}
+	if directClientH1 != nil {
+		return directClientH1
 	}
 	return directClient
 }

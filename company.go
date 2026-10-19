@@ -350,14 +350,15 @@ type sourceAdapter struct {
 	search func(context.Context, *http.Client, string, int) ([]CompanyBrief, error)
 	equity func(context.Context, *http.Client, string) ([]equityChild, error)
 	icp    func(context.Context, *http.Client, string) ([]icpHit, error)
+	h11    bool // 强制 HTTP/1.1（aqc 的 WAF 断 Go HTTP/2 握手）
 }
 
 func tycAdapter() sourceAdapter {
-	return sourceAdapter{"tyc", tycSearch, tycEquity, tycICP}
+	return sourceAdapter{name: "tyc", search: tycSearch, equity: tycEquity, icp: tycICP}
 }
 
 func aqcAdapter() sourceAdapter {
-	return sourceAdapter{"aqc", aqcSearch, aqcEquity, aqcICP}
+	return sourceAdapter{name: "aqc", search: aqcSearch, equity: aqcEquity, icp: aqcICP, h11: true}
 }
 
 type walkOut struct {
@@ -480,7 +481,11 @@ func CompanyRecon(ctx context.Context, keyword string, sources []string, depth i
 		wg.Add(1)
 		go func(i int, ad sourceAdapter) {
 			defer wg.Done()
-			outs[i] = walkSource(ctx, httpClientFor(ad.name), ad, keyword, depth, maxCompanies, minPercent, searchLimit)
+			client := httpClientFor(ad.name)
+			if ad.h11 {
+				client = http11ClientFor(ad.name)
+			}
+			outs[i] = walkSource(ctx, client, ad, keyword, depth, maxCompanies, minPercent, searchLimit)
 		}(i, ad)
 	}
 	wg.Wait()
