@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // pathFixture routes canned JSON bodies by request path.
@@ -200,5 +201,141 @@ func TestAqcICPExtractsDomainsAndNullList(t *testing.T) {
 	hits, err = aqcICP(context.Background(), rewriteHostClient(srv2), "10611165021909")
 	if err != nil || len(hits) != 0 {
 		t.Fatalf("null list should give 0 hits nil err, got %+v, %v", hits, err)
+	}
+}
+
+// companyWalkFixture 按路径+id 参数返回脚本化响应。
+// 根100 → ICP[a.com]；子公司200 → ICP[b.com] 且反向持股100（成环）；300 ICP 为空。
+func companyWalkFixture(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/cloud-tempest/app/searchCompany":
+			_, _ = w.Write([]byte(`{"state":"ok","data":{"companyList":[{"id":100,"name":"母公司"}]}}`))
+		case "/cloud-equity-provider/v4/equity/indexnode.json":
+			switch r.URL.Query().Get("id") {
+			case "100":
+				_, _ = w.Write([]byte(`{"state":"warn","data":{"investorList":[
+					{"name":"子公司A","id":200,"percent":"60%","hasNode":true},
+					{"name":"子公司B","id":300,"percent":"40%","hasNode":true},
+					{"name":"子公司C注销","id":400,"percent":"100%","regStatus":"注销","hasNode":true}]}}`))
+			case "200":
+				// 反向持股 60%（≥50 不被过滤）以验证 visited 防环：根会进树但不重复入队
+				_, _ = w.Write([]byte(`{"state":"warn","data":{"investorList":[
+					{"name":"母公司","id":100,"percent":"60%","hasNode":true}]}}`))
+			default:
+				_, _ = w.Write([]byte(`{"state":"warn","data":{"investorList":[]}}`))
+			}
+		case "/cloud-intellectual-property/intellectualProperty/icpRecordList":
+			switch r.URL.Query().Get("id") {
+			case "100":
+				_, _ = w.Write([]byte(`{"state":"ok","data":{"itemTotal":1,"item":[{"ym":"a.com","webSite":[],"liscense":"ICP-A"}]}}`))
+			case "200":
+				_, _ = w.Write([]byte(`{"state":"ok","data":{"itemTotal":1,"item":[{"ym":"b.com","webSite":[],"liscense":"ICP-B"}]}}`))
+			default:
+				_, _ = w.Write([]byte(`{"state":"ok","data":{"itemTotal":0}}`))
+			}
+		default:
+			t.Errorf("unexpected path: %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+}
+
+func TestCompanyReconWalkFiltersCyclesAndCaps(t *testing.T) {
+	requestPace = 0
+	defer func() { requestPace = 250 * time.Millisecond }()
+	srv := companyWalkFixture(t)
+	defer srv.Close()
+	old := directClient
+	directClient = rewriteHostClient(srv)
+	defer func() { directClient = old }()
+
+	res := CompanyRecon(context.Background(), "母公司", []string{"tyc"}, 3, 50, 10, 10)
+	if len(res.Errors) != 0 {
+		t.Fatalf("unexpected errors: %v", res.Errors)
+	}
+	if !res.Companies[0].Root || res.Companies[0].ID != "100" {
+		t.Fatalf("root not marked: %+v", res.Companies[0])
+	}
+	// minPercent=50 滤掉 B(40%)；注销 C 滤掉；A(60%) 保留；
+	// depth=3 时 A 的子节点（母公司60%）进树，但 visited 防重复遍历（不成环）
+	if len(res.EquityTree) != 2 {
+		t.Fatalf("want 2 tree nodes, got %+v", res.EquityTree)
+	}
+	if res.EquityTree[0].Path != "母公司 -60%-> 子公司A" || res.EquityTree[0].Depth != 2 {
+		t.Fatalf("bad path: %+v", res.EquityTree[0])
+	}
+	// 域名：根(a.com) + A(b.com)；环被 visited 截断不会重复遍历根
+	got := map[string]bool{}
+	for _, d := range res.Domains {
+		got[d.Domain] = true
+	}
+	if len(got) != 2 || !got["a.com"] || !got["b.com"] {
+		t.Fatalf("bad domains: %+v", res.Domains)
+	}
+}
+
+func TestCompanyReconMaxCompaniesCap(t *testing.T) {
+	requestPace = 0
+	defer func() { requestPace = 250 * time.Millisecond }()
+	srv := companyWalkFixture(t)
+	defer srv.Close()
+	old := directClient
+	directClient = rewriteHostClient(srv)
+	defer func() { directClient = old }()
+
+	res := CompanyRecon(context.Background(), "母公司", []string{"tyc"}, 3, 0, 1, 10)
+	// cap=1：只遍历根；树根仍含根的直接子公司，但不会有子公司的域名
+	if len(res.Domains) != 1 || res.Domains[0].Domain != "a.com" {
+		t.Fatalf("cap broken: %+v", res.Domains)
+	}
+	if len(res.EquityTree) != 2 { // minPercent=0：A、B 都进树；C 注销仍过滤
+		t.Fatalf("want 2 tree nodes, got %+v", res.EquityTree)
+	}
+}
+
+func TestCompanyReconMergesDomainSources(t *testing.T) {
+	requestPace = 0
+	defer func() { requestPace = 250 * time.Millisecond }()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/cloud-tempest/app/searchCompany":
+			_, _ = w.Write([]byte(`{"state":"ok","data":{"companyList":[{"id":100,"name":"X公司"}]}}`))
+		case "/cloud-equity-provider/v4/equity/indexnode.json":
+			_, _ = w.Write([]byte(`{"state":"ok","data":{"investorList":[]}}`))
+		case "/cloud-intellectual-property/intellectualProperty/icpRecordList":
+			_, _ = w.Write([]byte(`{"state":"ok","data":{"itemTotal":1,"item":[{"ym":"shared.com","webSite":[],"liscense":"ICP-T"}]}}`))
+		case "/wechat/searchListAjax":
+			_, _ = w.Write([]byte(`{"status":0,"data":{"resultList":[{"pid":"p1","entName":"X公司"}]}}`))
+		case "/stockchart/stockchartAjax":
+			_, _ = w.Write([]byte(`{"status":0,"data":{"investRecordData":{"total":0,"list":[]}}}`))
+		case "/cs/icpInfoAjax":
+			_, _ = w.Write([]byte(`{"status":0,"data":{"total":1,"list":[{"domain":["shared.com"],"homeSite":[],"icpNo":"ICP-A"}]}}`))
+		default:
+			t.Errorf("unexpected path: %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+	old := directClient
+	directClient = rewriteHostClient(srv)
+	defer func() { directClient = old }()
+
+	res := CompanyRecon(context.Background(), "X", nil, 2, 0, 5, 10) // sources=nil → 双源
+	if len(res.Companies) != 2 {
+		t.Fatalf("want 2 search hits (tyc+aqc), got %+v", res.Companies)
+	}
+	if len(res.Domains) != 1 || len(res.Domains[0].Sources) != 2 {
+		t.Fatalf("domain sources not merged: %+v", res.Domains)
+	}
+}
+
+func TestCompanyReconRejectsUnknownSource(t *testing.T) {
+	res := CompanyRecon(context.Background(), "X", []string{"qcc"}, 2, 0, 5, 10)
+	if len(res.Errors) != 1 || !strings.Contains(res.Errors[0], "qcc") {
+		t.Fatalf("want unknown-source error, got %+v", res.Errors)
 	}
 }

@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
 // 天眼查微信小程序 UA（小程序 API 免登录的关键）
@@ -308,4 +311,204 @@ func aqcICP(ctx context.Context, client *http.Client, pid string) ([]icpHit, err
 		}
 	}
 	return hits, nil
+}
+
+var requestPace = 250 * time.Millisecond // 同源请求间隔，测试置 0
+
+func pace() {
+	if requestPace > 0 {
+		time.Sleep(requestPace)
+	}
+}
+
+type EquityNode struct {
+	Source  string  `json:"source"`
+	ID      string  `json:"id"`
+	Name    string  `json:"name"`
+	Percent float64 `json:"percent"`
+	Depth   int     `json:"depth"`
+	Path    string  `json:"path"`
+}
+
+type DomainRecord struct {
+	Domain  string   `json:"domain"`
+	Company string   `json:"company"`
+	ICPNo   string   `json:"icp_no,omitempty"`
+	Sources []string `json:"sources"`
+}
+
+type CompanyReconResult struct {
+	Keyword    string         `json:"keyword"`
+	Companies  []CompanyBrief `json:"companies"`
+	EquityTree []EquityNode   `json:"equity_tree"`
+	Domains    []DomainRecord `json:"domains"`
+	Errors     []string       `json:"errors"`
+}
+
+type sourceAdapter struct {
+	name   string
+	search func(context.Context, *http.Client, string, int) ([]CompanyBrief, error)
+	equity func(context.Context, *http.Client, string) ([]equityChild, error)
+	icp    func(context.Context, *http.Client, string) ([]icpHit, error)
+}
+
+func tycAdapter() sourceAdapter {
+	return sourceAdapter{"tyc", tycSearch, tycEquity, tycICP}
+}
+
+func aqcAdapter() sourceAdapter {
+	return sourceAdapter{"aqc", aqcSearch, aqcEquity, aqcICP}
+}
+
+type walkOut struct {
+	companies []CompanyBrief
+	tree      []EquityNode
+	domains   []DomainRecord
+	errs      []string
+}
+
+// walkSource：搜索 → 取首条命中为根 → BFS 穿透（visited 防环，minPercent/注销 过滤，
+// maxCompanies 硬上限），每个遍历到的公司查一次 ICP 域名。
+func walkSource(ctx context.Context, client *http.Client, ad sourceAdapter, keyword string,
+	depth, maxCompanies int, minPercent float64, searchLimit int) walkOut {
+
+	out := walkOut{}
+	hits, err := ad.search(ctx, client, keyword, searchLimit)
+	if err != nil {
+		out.errs = append(out.errs, err.Error())
+		return out
+	}
+	if len(hits) == 0 {
+		return out
+	}
+	hits[0].Root = true
+	out.companies = hits
+	root := hits[0]
+
+	type item struct {
+		id, name, path string
+		depth          int
+	}
+	visited := map[string]bool{root.ID: true}
+	inTree := map[string]bool{}
+	queue := []item{{root.ID, root.Name, root.Name, 1}}
+	walked := 0
+	for len(queue) > 0 && walked < maxCompanies {
+		it := queue[0]
+		queue = queue[1:]
+		walked++
+		pace()
+		icpHits, err := ad.icp(ctx, client, it.id)
+		if err != nil {
+			out.errs = append(out.errs, err.Error())
+		} else {
+			for _, h := range icpHits {
+				out.domains = append(out.domains, DomainRecord{
+					Domain: h.domain, Company: it.name, ICPNo: h.icpNo, Sources: []string{ad.name},
+				})
+			}
+		}
+		if it.depth >= depth {
+			continue
+		}
+		pace()
+		children, err := ad.equity(ctx, client, it.id)
+		if err != nil {
+			out.errs = append(out.errs, err.Error())
+			continue
+		}
+		for _, ch := range children {
+			if ch.RegStatus == "注销" || ch.Percent < minPercent || inTree[ch.ID] {
+				continue
+			}
+			inTree[ch.ID] = true
+			p := strconv.FormatFloat(ch.Percent, 'f', -1, 64) + "%"
+			nodePath := it.path + " -" + p + "-> " + ch.Name
+			out.tree = append(out.tree, EquityNode{
+				Source: ad.name, ID: ch.ID, Name: ch.Name,
+				Percent: ch.Percent, Depth: it.depth + 1, Path: nodePath,
+			})
+			if !visited[ch.ID] && ch.HasNode && walked+len(queue) < maxCompanies {
+				visited[ch.ID] = true
+				queue = append(queue, item{ch.ID, ch.Name, nodePath, it.depth + 1})
+			}
+		}
+	}
+	return out
+}
+
+// CompanyRecon 双源并发遍历，域名按 domain 合并、sources 归集。
+func CompanyRecon(ctx context.Context, keyword string, sources []string, depth int,
+	minPercent float64, maxCompanies, searchLimit int) CompanyReconResult {
+
+	depth = clamp(depth, 1, 5)
+	maxCompanies = clamp(maxCompanies, 1, 100)
+	searchLimit = clamp(searchLimit, 1, 20)
+	if minPercent < 0 {
+		minPercent = 0
+	}
+	if minPercent > 100 {
+		minPercent = 100
+	}
+	if len(sources) == 0 {
+		sources = []string{"tyc", "aqc"}
+	}
+	empty := CompanyReconResult{
+		Keyword: keyword, Companies: []CompanyBrief{},
+		EquityTree: []EquityNode{}, Domains: []DomainRecord{}, Errors: []string{},
+	}
+	ads := []sourceAdapter{}
+	bad := []string{}
+	for _, s := range sources {
+		switch s {
+		case "tyc":
+			ads = append(ads, tycAdapter())
+		case "aqc":
+			ads = append(ads, aqcAdapter())
+		default:
+			bad = append(bad, s)
+		}
+	}
+	if len(bad) > 0 {
+		empty.Errors = append(empty.Errors, fmt.Sprintf("unknown source(s): %v; available: [tyc aqc]", bad))
+		return empty
+	}
+
+	outs := make([]walkOut, len(ads))
+	var wg sync.WaitGroup
+	for i, ad := range ads {
+		wg.Add(1)
+		go func(i int, ad sourceAdapter) {
+			defer wg.Done()
+			outs[i] = walkSource(ctx, httpClientFor(ad.name), ad, keyword, depth, maxCompanies, minPercent, searchLimit)
+		}(i, ad)
+	}
+	wg.Wait()
+
+	res := empty
+	domainIdx := map[string]int{}
+	for _, o := range outs {
+		res.Companies = append(res.Companies, o.companies...)
+		res.EquityTree = append(res.EquityTree, o.tree...)
+		res.Errors = append(res.Errors, o.errs...)
+		for _, d := range o.domains {
+			if i, ok := domainIdx[d.Domain]; ok {
+				ex := &res.Domains[i]
+				seen := false
+				for _, s := range ex.Sources {
+					if s == d.Sources[0] {
+						seen = true
+						break
+					}
+				}
+				if !seen {
+					ex.Sources = append(ex.Sources, d.Sources[0])
+				}
+				continue
+			}
+			domainIdx[d.Domain] = len(res.Domains)
+			res.Domains = append(res.Domains, d)
+		}
+	}
+	return res
 }
