@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -111,18 +113,29 @@ func jstrAny(v any) string {
 	return ""
 }
 
+// safeErr 剥离错误中的完整请求 URL（FOFA/Hunter/Shodan/DayDayMap 的 key
+// 在 query 里，url.Error 会原样带出），只保留底层原因，防止密钥随
+// 工具结果进入模型上下文。
+func safeErr(err error) string {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		return ue.Err.Error()
+	}
+	return err.Error()
+}
+
 // doHTTP executes req, decodes JSON, and converts transport/HTTP failures
 // into EngineError (status + first 300 bytes of body, like the Python port).
 func doHTTP(engine string, client *http.Client, req *http.Request) (map[string]any, error) {
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, &EngineError{engine, "network error: " + err.Error()}
+		return nil, &EngineError{engine, "network error: " + safeErr(err)}
 	}
 	defer resp.Body.Close()
 	// Shodan returns multi-MB bodies (banner data for up to 100 matches).
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
 	if err != nil {
-		return nil, &EngineError{engine, "read error: " + err.Error()}
+		return nil, &EngineError{engine, "read error: " + safeErr(err)}
 	}
 	if resp.StatusCode >= 400 {
 		snip := string(body)
@@ -138,7 +151,7 @@ func getJSON(ctx context.Context, engine string, client *http.Client, url string
 	query map[string]string, headers map[string]string) (map[string]any, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, &EngineError{engine, err.Error()}
+		return nil, &EngineError{engine, safeErr(err)}
 	}
 	q := req.URL.Query()
 	for k, v := range query {
@@ -156,7 +169,7 @@ func postJSON(ctx context.Context, engine string, client *http.Client, url strin
 	buf, _ := json.Marshal(payload)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(buf))
 	if err != nil {
-		return nil, &EngineError{engine, err.Error()}
+		return nil, &EngineError{engine, safeErr(err)}
 	}
 	req.Header.Set("Content-Type", "application/json")
 	for k, v := range headers {
@@ -437,7 +450,7 @@ func (Censys) Search(ctx context.Context, client *http.Client, query string, lim
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://search.censys.io/api/v2/hosts/search", nil)
 	if err != nil {
-		return nil, &EngineError{"censys", err.Error()}
+		return nil, &EngineError{"censys", safeErr(err)}
 	}
 	q := req.URL.Query()
 	q.Set("q", query)

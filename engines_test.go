@@ -2,12 +2,51 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
+
+// --- error sanitization (key in URL query must never reach tool results) ---
+
+func TestSafeErrDropsURL(t *testing.T) {
+	err := &url.Error{Op: "Get", URL: "https://fofa.info/api?key=SECRET123",
+		Err: errors.New("dial tcp: i/o timeout")}
+	if got := safeErr(err); got != "dial tcp: i/o timeout" {
+		t.Fatalf("safeErr = %q", got)
+	}
+}
+
+func TestGetJSONNetworkErrorStripsURLKey(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	srv.Close() // 立即关闭 → 连接拒绝，触发 url.Error
+	_, err := getJSON(context.Background(), "fofa", srv.Client(), srv.URL,
+		map[string]string{"key": "SECRET123", "qbase64": "eA=="}, nil)
+	if err == nil {
+		t.Fatal("want network error")
+	}
+	if strings.Contains(err.Error(), "SECRET123") || strings.Contains(err.Error(), srv.URL) {
+		t.Fatalf("URL/key leaked into error: %v", err)
+	}
+	if !strings.Contains(err.Error(), "network error") || !strings.Contains(err.Error(), "[fofa]") {
+		t.Fatalf("underlying cause/engine lost: %v", err)
+	}
+}
+
+func TestGetJSONBuildErrorStripsURLKey(t *testing.T) {
+	_, err := getJSON(context.Background(), "fofa", http.DefaultClient,
+		"https://example.com/\x7f?key=SECRET123", nil, nil)
+	if err == nil {
+		t.Fatal("want URL build error")
+	}
+	if strings.Contains(err.Error(), "SECRET123") {
+		t.Fatalf("key leaked into build error: %v", err)
+	}
+}
 
 // --- merge ---
 

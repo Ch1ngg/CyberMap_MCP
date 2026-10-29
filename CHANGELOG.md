@@ -1,5 +1,15 @@
 # Changelog
 
+
+## [0.4.1] - 2026-10-19
+
+### Security
+- 错误脱敏：网络/URL 解析失败时错误信息不再包含完整请求 URL——此前
+  FOFA/Hunter/Shodan/DayDayMap 的 key 在 query 参数里，会随 `url.Error`
+  进入工具结果与模型上下文。新增 `safeErr` 统一剥离（doHTTP、getJSON、
+  postJSON、Censys 共 5 处），只保留底层原因；其余走 header/POST body 的
+  引擎不受影响。回归测试覆盖连接拒绝与非法 URL 两条泄漏路径。
+
 ## [0.4.0] - 2026-10-19
 
 ### Added
